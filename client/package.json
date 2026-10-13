@@ -1,6 +1,6 @@
 {
   "name": "hcinco-dashboard-ui",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,11 +9,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "lucide-react": "^0.468.0"
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "lucide-react": "0.468.0"
   },
   "devDependencies": {
-    "vite": "^8.3.4"
+    "vite": "8.3.4"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

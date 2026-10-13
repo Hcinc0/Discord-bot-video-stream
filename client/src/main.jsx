@@ -26,7 +26,7 @@ const copy = {
     dashboardSecurity: 'Dashboard API security', dashboardKey: 'Dashboard API Key', dashboardKeyHint: 'Only needed if DASHBOARD_API_KEY is set in server/.env.', saveKey: 'Use key',
     configured: 'Configured', notConfigured: 'Not configured', apiProtected: 'API protection is enabled', apiOpen: 'API key protection is disabled (recommended only for local use).',
     permissions: 'Invite permissions: View Channels, Connect, Speak', chooseFirst: 'Start the bot first, then select a server and voice channel.',
-    saved: 'Settings saved.', removed: 'Saved bot token removed.', invalidKey: 'Dashboard API key is invalid.',
+    saved: 'Settings saved.', removed: 'Saved bot token removed.', invalidKey: 'Dashboard API key is invalid.', backendOffline: 'Backend is offline. Run START-HCINCO.bat and keep the Backend window open.',
   },
   fa: {
     appName: 'کنترل Hcinco', creator: 'ساخته شده توسط Hcinco', dashboard: 'داشبورد', control: 'پخش در ویس', settings: 'تنظیمات',
@@ -46,7 +46,7 @@ const copy = {
     dashboardSecurity: 'امنیت API داشبورد', dashboardKey: 'Dashboard API Key', dashboardKeyHint: 'فقط اگر DASHBOARD_API_KEY را در server/.env تنظیم کرده‌اید لازم است.', saveKey: 'استفاده از کلید',
     configured: 'تنظیم شده', notConfigured: 'تنظیم نشده', apiProtected: 'محافظت API فعال است', apiOpen: 'محافظت با API Key غیرفعال است؛ فقط برای اجرای لوکال پیشنهاد می‌شود.',
     permissions: 'دسترسی Invite: View Channels، Connect و Speak', chooseFirst: 'ابتدا ربات را Run کنید؛ سپس سرور و Voice را انتخاب کنید.',
-    saved: 'تنظیمات ذخیره شد.', removed: 'توکن ذخیره‌شده حذف شد.', invalidKey: 'Dashboard API Key اشتباه است.',
+    saved: 'تنظیمات ذخیره شد.', removed: 'توکن ذخیره‌شده حذف شد.', invalidKey: 'Dashboard API Key اشتباه است.', backendOffline: 'بک‌اند خاموش است. فایل START-HCINCO.bat را اجرا کنید و پنجره Backend را باز نگه دارید.',
   }
 };
 
@@ -75,18 +75,27 @@ function App() {
   const rtl = lang === 'fa';
 
   const api = async (path, options = {}) => {
-    const response = await fetch(`/api${path}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(apiKey ? { 'x-api-key': apiKey } : {}),
-        ...options.headers,
-      },
-    });
+    let response;
+    try {
+      response = await fetch(`/api${path}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey ? { 'x-api-key': apiKey } : {}),
+          ...options.headers,
+        },
+      });
+    } catch (cause) {
+      const error = new Error(t.backendOffline);
+      error.code = 'BACKEND_OFFLINE';
+      error.cause = cause;
+      throw error;
+    }
     let data = {};
     try { data = await response.json(); } catch {}
     if (!response.ok) {
-      const error = new Error(data.error || `HTTP ${response.status}`);
+      const proxyFailure = response.status === 502 || response.status === 503 && !data.error;
+      const error = new Error(proxyFailure ? t.backendOffline : (data.error || `HTTP ${response.status}`));
       error.status = response.status;
       error.data = data;
       throw error;
@@ -99,6 +108,7 @@ function App() {
   const loadPublicHealth = async () => {
     try {
       const response = await fetch('/api/health');
+      if (!response.ok) throw new Error('Backend health check failed');
       setHealth(await response.json());
     } catch {
       setHealth({ ok: false, botOnline: false, tokenConfigured: false, apiKeyRequired: false });

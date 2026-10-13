@@ -1,55 +1,41 @@
-HCINCO DISCORD VOICE DASHBOARD v2
-=================================
+Hcinco Discord Voice Dashboard v2.1 - Commands
+===============================================
 
-REQUIREMENT
-Node.js 22.12+ and npm
+RECOMMENDED WINDOWS START:
+  START-HCINCO.bat
 
-FIRST INSTALL
-npm install
-npm run install:all
+CLEAN REINSTALL ON WINDOWS:
+  CLEAN-INSTALL-WINDOWS.bat
 
-CREATE ENV - WINDOWS POWERSHELL
-Copy-Item server/.env.example server/.env
+MANUAL SETUP:
+  node -v
+  npm install --prefix server
+  npm install --prefix client
 
-CREATE ENV - LINUX / macOS
-cp server/.env.example server/.env
+RUN BOTH:
+  npm run dev
 
-DEVELOPMENT
-npm run dev
+RUN BACKEND ONLY:
+  npm run backend
+  # or: npm run dev --prefix server
 
-OPEN DASHBOARD
-http://localhost:5173
+RUN FRONTEND ONLY:
+  npm run frontend
+  # or: npm run dev --prefix client
 
-BACKEND HEALTH
-http://localhost:4000/api/health
+CHECK BACKEND:
+  http://127.0.0.1:4000/api/health
 
-PRODUCTION FRONTEND BUILD
-npm run build
+DASHBOARD:
+  http://localhost:5173
 
-START BACKEND ONLY
-npm start
+PRODUCTION FRONTEND BUILD:
+  npm run build
 
-BACKEND DEV ONLY
-npm run dev --prefix server
+VOICE DEPENDENCY REPORT:
+  npm run doctor
 
-FRONTEND DEV ONLY
-npm run dev --prefix client
-
-VOICE DEPENDENCY REPORT
-npm run doctor
-
-BOT TOKEN
-Do NOT put the Discord Bot Token in .env.
-Open the website -> Settings -> Discord Bot Token -> Save settings.
-Then click Run Bot.
-
-OPTIONAL DASHBOARD API KEY
-server/.env:
-PORT=4000
-CLIENT_ORIGIN=http://localhost:5173
-DASHBOARD_API_KEY=
-
-If DASHBOARD_API_KEY is set, enter the same value in the website:
-Settings -> Dashboard API Security.
-
-CREATED BY HCINCO
+Requirements:
+  Node.js 22.12.0+
+  Internet access for npm install and remote media
+  Discord bot with View Channels + Connect + Speak

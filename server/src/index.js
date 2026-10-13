@@ -431,8 +431,14 @@ app.post('/api/playback/stop', async (_req, res) => {
 });
 
 const port = Number(process.env.PORT || 4000);
-app.listen(port, async () => {
-  console.log(`Hcinco Control API listening on http://localhost:${port}`);
+const host = process.env.HOST || '0.0.0.0';
+
+process.on('unhandledRejection', (error) => console.error('[Unhandled rejection]', error));
+process.on('uncaughtException', (error) => console.error('[Uncaught exception]', error));
+
+app.listen(port, host, async () => {
+  console.log(`Hcinco Control API listening on http://127.0.0.1:${port}`);
+  console.log(`Node.js ${process.version} | PID ${process.pid}`);
   try {
     const settings = await loadSettings();
     if (settings.autoStart && settings.botToken) {
