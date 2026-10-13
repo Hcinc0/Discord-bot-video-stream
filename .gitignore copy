@@ -1,7 +1,0 @@
-node_modules/
-dist/
-.env
-*.log
-server/data/settings.json
-server/data/.secret-key
-.DS_Store
