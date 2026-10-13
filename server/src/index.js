@@ -14,14 +14,12 @@ import {
   entersState,
   joinVoiceChannel,
 } from '@discordjs/voice';
-import play from 'play-dl';
 import { z } from 'zod';
 import crypto from 'node:crypto';
-import dns from 'node:dns/promises';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Readable } from 'node:stream';
+import { assertSafeMediaUrl, createAudioPipeline, probeMedia, toolsStatus } from './media.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.resolve(__dirname, '../data');
@@ -40,7 +38,7 @@ const runtime = {
   starting: false,
   connection: null,
   player: null,
-  directStream: null,
+  mediaPipeline: null,
   playback: {
     status: 'idle',
     url: '',
@@ -48,6 +46,8 @@ const runtime = {
     channelId: '',
     startedAt: null,
     message: '',
+    title: '',
+    duration: null,
   },
   botError: '',
 };
@@ -134,20 +134,34 @@ function publicState() {
   };
 }
 
+async function stopVoiceOnly() {
+  if (runtime.player) {
+    try { runtime.player.stop(true); } catch {}
+    runtime.player = null;
+  }
+  if (runtime.connection) {
+    try { runtime.connection.destroy(); } catch {}
+    runtime.connection = null;
+  }
+}
+
 async function stopPlayback({ leave = true } = {}) {
   if (runtime.player) {
     try { runtime.player.stop(true); } catch {}
   }
-  if (runtime.directStream) {
-    try { runtime.directStream.destroy(); } catch {}
-    runtime.directStream = null;
+  if (runtime.mediaPipeline) {
+    try { runtime.mediaPipeline.cleanup(); } catch {}
+    runtime.mediaPipeline = null;
   }
   if (leave && runtime.connection) {
     try { runtime.connection.destroy(); } catch {}
     runtime.connection = null;
   }
   runtime.player = null;
-  runtime.playback = { status: 'idle', url: '', guildId: '', channelId: '', startedAt: null, message: '' };
+  runtime.playback = {
+    status: 'idle', url: '', guildId: '', channelId: '', startedAt: null,
+    message: '', title: '', duration: null,
+  };
 }
 
 function buildClient() {
@@ -209,51 +223,7 @@ async function stopBot() {
   return publicState();
 }
 
-function isPrivateIp(address) {
-  if (address === '::1' || address === '0.0.0.0' || address === '::') return true;
-  if (address.startsWith('10.') || address.startsWith('127.') || address.startsWith('169.254.') || address.startsWith('192.168.')) return true;
-  const parts = address.split('.').map(Number);
-  if (parts.length === 4 && parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
-  const a = address.toLowerCase();
-  return a.startsWith('fc') || a.startsWith('fd') || a.startsWith('fe80:');
-}
 
-async function assertSafeMediaUrl(value) {
-  const url = new URL(value);
-  if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Only HTTP/HTTPS media URLs are allowed.');
-  if (['localhost', 'localhost.localdomain'].includes(url.hostname.toLowerCase())) throw new Error('Local network URLs are not allowed.');
-  if (/(^|\.)youtube\.com$/i.test(url.hostname) || /(^|\.)youtu\.be$/i.test(url.hostname) || /(^|\.)soundcloud\.com$/i.test(url.hostname)) return url;
-  const addresses = await dns.lookup(url.hostname, { all: true, verbatim: true });
-  if (!addresses.length || addresses.some(({ address }) => isPrivateIp(address))) throw new Error('Private/local network media URLs are not allowed.');
-  return url;
-}
-
-async function fetchSafeStream(initialUrl, redirectsLeft = 4) {
-  const safeUrl = await assertSafeMediaUrl(initialUrl);
-  const response = await fetch(safeUrl, {
-    redirect: 'manual',
-    headers: { 'user-agent': 'Hcinco-Discord-Voice-Dashboard/2.0' },
-    signal: AbortSignal.timeout(15_000),
-  });
-  if ([301, 302, 303, 307, 308].includes(response.status)) {
-    if (redirectsLeft <= 0) throw new Error('Too many media redirects.');
-    const location = response.headers.get('location');
-    if (!location) throw new Error('Invalid media redirect.');
-    return fetchSafeStream(new URL(location, safeUrl).toString(), redirectsLeft - 1);
-  }
-  if (!response.ok || !response.body) throw new Error(`Media server returned HTTP ${response.status}.`);
-  return Readable.fromWeb(response.body);
-}
-
-async function createMediaResource(url) {
-  const type = await play.validate(url);
-  if (type === 'yt_video' || type === 'so_track') {
-    const source = await play.stream(url, { discordPlayerCompatibility: true });
-    return { resource: createAudioResource(source.stream, { inputType: source.type, inlineVolume: true }), stream: source.stream };
-  }
-  const stream = await fetchSafeStream(url);
-  return { resource: createAudioResource(stream, { inputType: StreamType.Arbitrary, inlineVolume: true }), stream };
-}
 
 app.get('/api/health', async (_req, res) => {
   const settings = await loadSettings();
@@ -263,6 +233,11 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api', auth);
 
 app.get('/api/status', (_req, res) => res.json(publicState()));
+
+app.get('/api/tools/status', async (_req, res) => {
+  try { res.json(await toolsStatus()); }
+  catch (error) { res.status(500).json({ error: error.message || 'Unable to check media tools.' }); }
+});
 
 app.get('/api/config', async (_req, res) => {
   const settings = await loadSettings();
@@ -373,7 +348,23 @@ app.post('/api/playback/start', async (req, res) => {
     if (channel.type !== ChannelType.GuildStageVoice && !permissions?.has(PermissionsBitField.Flags.Speak)) throw new Error('Bot does not have Speak permission in this voice channel.');
 
     await stopPlayback({ leave: true });
-    runtime.playback = { status: 'loading', url, guildId, channelId, startedAt: null, message: 'Preparing media…' };
+
+    // Resolve the media BEFORE joining voice. This prevents the old "join then instantly leave"
+    // behavior when SoundCloud/YouTube extraction fails.
+    runtime.playback = {
+      status: 'resolving', url, guildId, channelId, startedAt: null,
+      message: 'Checking media link…', title: '', duration: null,
+    };
+    const mediaInfo = await probeMedia(url);
+    runtime.playback.title = mediaInfo.title || 'Media';
+    runtime.playback.duration = mediaInfo.duration ?? null;
+    runtime.playback.message = 'Preparing audio stream…';
+
+    const pipeline = await createAudioPipeline(url, mediaInfo);
+    runtime.mediaPipeline = pipeline;
+
+    runtime.playback.status = 'connecting';
+    runtime.playback.message = 'Connecting to Discord voice…';
 
     const connection = joinVoiceChannel({
       channelId,
@@ -383,20 +374,43 @@ app.post('/api/playback/start', async (req, res) => {
       selfMute: false,
     });
     runtime.connection = connection;
+
+    connection.on('error', (error) => {
+      console.error('[Voice connection]', error.message);
+      runtime.playback.status = 'error';
+      runtime.playback.message = error.message || 'Discord voice connection failed.';
+    });
+    connection.on(VoiceConnectionStatus.Disconnected, async () => {
+      try {
+        await Promise.race([
+          entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
+          entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
+        ]);
+      } catch {
+        if (runtime.connection === connection) {
+          runtime.playback.status = 'error';
+          runtime.playback.message = 'Discord voice connection was disconnected.';
+          try { connection.destroy(); } catch {}
+          runtime.connection = null;
+        }
+      }
+    });
+
     await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
 
-    const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
+    const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Play } });
     runtime.player = player;
-    connection.subscribe(player);
+    const subscription = connection.subscribe(player);
+    if (!subscription) throw new Error('Discord voice subscription could not be created.');
 
-    const { resource, stream } = await createMediaResource(url);
-    runtime.directStream = stream;
+    const resource = createAudioResource(pipeline.stream, { inputType: StreamType.Raw, inlineVolume: true });
     if (resource.volume) resource.volume.setVolume(volume);
 
     player.on('error', (error) => {
-      console.error('[Audio player]', error.message);
+      const detail = pipeline.describeError?.() || error.message;
+      console.error('[Audio player]', error.message, detail);
       runtime.playback.status = 'error';
-      runtime.playback.message = error.message || 'Audio playback failed.';
+      runtime.playback.message = detail || error.message || 'Audio playback failed.';
     });
     player.on(AudioPlayerStatus.Playing, () => {
       runtime.playback.status = 'playing';
@@ -405,22 +419,31 @@ app.post('/api/playback/start', async (req, res) => {
     });
     player.on(AudioPlayerStatus.Paused, () => {
       runtime.playback.status = 'paused';
-      runtime.playback.message = 'Playback is paused because there is no voice subscriber.';
+      runtime.playback.message = 'Playback is paused.';
     });
     player.on(AudioPlayerStatus.Idle, () => {
-      if (runtime.playback.status !== 'idle') {
-        runtime.playback.status = 'finished';
-        runtime.playback.message = 'Playback finished.';
+      if (runtime.playback.status !== 'idle' && runtime.playback.status !== 'error') {
+        const detail = pipeline.describeError?.();
+        runtime.playback.status = detail ? 'error' : 'finished';
+        runtime.playback.message = detail || 'Playback finished. The bot stays in voice until Stop & Leave is pressed.';
+      }
+      if (runtime.mediaPipeline === pipeline) {
+        try { pipeline.cleanup(); } catch {}
+        runtime.mediaPipeline = null;
       }
     });
 
     player.play(resource);
-    await entersState(player, AudioPlayerStatus.Playing, 20_000);
+    await entersState(player, AudioPlayerStatus.Playing, 25_000);
     res.json(publicState());
   } catch (error) {
     const message = error?.message || 'Unable to start playback.';
+    console.error('[Playback start]', message);
     await stopPlayback({ leave: true });
-    runtime.playback = { status: 'error', url, guildId, channelId, startedAt: null, message };
+    runtime.playback = {
+      status: 'error', url, guildId, channelId, startedAt: null,
+      message, title: '', duration: null,
+    };
     res.status(400).json({ error: message, state: publicState() });
   }
 });

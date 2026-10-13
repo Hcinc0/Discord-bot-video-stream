@@ -1,34 +1,19 @@
-HCINCO DISCORD VOICE DASHBOARD v2.1 - FIXED
-===========================================
+HCINCO v2.2 MEDIA FIX
+=====================
 
-Main fixes in this package:
-1. Added START-HCINCO.bat: starts backend first, checks /api/health, then starts frontend.
-2. Backend and frontend run in separate visible Windows terminals so backend errors are never hidden.
-3. Dashboard proxy now uses 127.0.0.1:4000 instead of localhost.
-4. Backend listens on 0.0.0.0:4000 and reports Node version + PID at startup.
-5. Dashboard now shows a clear "Backend is offline" message instead of raw HTTP 502.
-6. Removed a duplicate Voice Channel API request in the React UI.
-7. Dependency versions are pinned to prevent npm from silently upgrading to incompatible versions.
-8. Added Node.js 22.12+ compatibility check before startup.
-9. Added CLEAN-INSTALL-WINDOWS.bat for removing old node_modules and reinstalling safely.
+FIXED:
+- SoundCloud client_id crash from the previous media resolver.
+- SoundCloud Set/Playlist links now play the first item.
+- YouTube/SoundCloud extraction moved to yt-dlp.
+- Media is resolved before Discord voice join.
+- Bot no longer leaves immediately just because media extraction failed.
+- Playback errors now return readable messages.
+- Bot stays in voice after playback finishes until Stop & Leave.
 
-FIRST RUN ON WINDOWS
---------------------
-Double-click: START-HCINCO.bat
+MEDIA ENGINE:
+- yt-dlp: auto-downloaded from official GitHub release on first media playback if missing.
+- FFmpeg: provided by ffmpeg-static npm dependency.
 
-If this project replaces an older version, run this once first:
-CLEAN-INSTALL-WINDOWS.bat
-
-Then run:
-START-HCINCO.bat
-
-IMPORTANT
----------
-Keep both windows open:
-- Hcinco Backend - KEEP OPEN
-- Hcinco Frontend - KEEP OPEN
-
-Dashboard: http://localhost:5173
-Backend health: http://127.0.0.1:4000/api/health
-
-Discord voice engine in this version uses @discordjs/voice 0.19.2 and requires Node.js 22.12.0+.
+NOTE:
+Official Discord bot APIs do not provide video screen share / Go Live for bots.
+This project plays audio in Discord Voice.

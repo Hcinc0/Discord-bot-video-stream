@@ -4,7 +4,7 @@ cd /d "%~dp0"
 title Hcinco Discord Voice Dashboard - Launcher
 
 echo ========================================================
-echo   HCINCO DISCORD VOICE DASHBOARD v2.1 - FIXED LAUNCHER
+echo   HCINCO DISCORD VOICE DASHBOARD v2.2 - MEDIA FIX LAUNCHER
 echo ========================================================
 echo.
 

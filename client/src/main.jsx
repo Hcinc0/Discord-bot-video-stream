@@ -11,12 +11,12 @@ const copy = {
   en: {
     appName: 'Hcinco Control', creator: 'Created by Hcinco', dashboard: 'Dashboard', control: 'Voice Player', settings: 'Settings',
     overview: 'Overview', subtitle: 'Professional Discord bot control center', workspace: 'WORKSPACE', botStatus: 'Bot status', online: 'Online', offline: 'Offline',
-    starting: 'Starting…', guilds: 'Servers', playback: 'Playback', idle: 'Idle', playing: 'Playing', finished: 'Finished', error: 'Error',
+    starting: 'Starting…', guilds: 'Servers', playback: 'Playback', idle: 'Idle', resolving: 'Resolving', connecting: 'Connecting', paused: 'Paused', playing: 'Playing', finished: 'Finished', error: 'Error',
     botControl: 'Discord Bot', botControlSub: 'Start or stop the bot directly from this dashboard.', startBot: 'Run Bot', stopBot: 'Stop Bot', refresh: 'Refresh',
     tokenReady: 'Bot token is configured', tokenMissing: 'Bot token is not configured', goSettings: 'Open Settings',
     selectServer: 'Select server', selectServerHint: 'Choose one of the servers where your bot is already installed.', serverPlaceholder: 'Choose a Discord server…',
     selectVoice: 'Select voice channel', voicePlaceholder: 'Choose a voice channel…', members: 'members', noVoice: 'No voice channels were found.',
-    mediaUrl: 'Video / media URL', mediaHint: 'YouTube, SoundCloud, or a direct media URL. The bot sends the audio track to Discord voice.',
+    mediaUrl: 'Video / media URL', mediaHint: 'YouTube, SoundCloud (track or playlist/set), Instagram/TikTok/Vimeo, or a direct media URL. Playlists start from the first item. The first playback may install the media engine automatically.',
     volume: 'Volume', playNow: 'Play in Voice', stopLeave: 'Stop & Leave', loadingChannels: 'Loading channels…',
     nowPlaying: 'Now playing', noPlayback: 'Nothing is playing right now.', joined: 'Bot joins the selected voice channel automatically.',
     limitationTitle: 'Discord video limitation', limitation: 'Official Discord bot APIs do not provide Go Live / screen-share video. This project plays the media audio in the voice channel. Video screen sharing would require unofficial client behavior and is intentionally not included.',
@@ -31,12 +31,12 @@ const copy = {
   fa: {
     appName: 'کنترل Hcinco', creator: 'ساخته شده توسط Hcinco', dashboard: 'داشبورد', control: 'پخش در ویس', settings: 'تنظیمات',
     overview: 'نمای کلی', subtitle: 'مرکز کنترل حرفه‌ای ربات دیسکورد', workspace: 'بخش مدیریت', botStatus: 'وضعیت ربات', online: 'آنلاین', offline: 'آفلاین',
-    starting: 'در حال اجرا…', guilds: 'سرورها', playback: 'پخش', idle: 'متوقف', playing: 'در حال پخش', finished: 'تمام شد', error: 'خطا',
+    starting: 'در حال اجرا…', guilds: 'سرورها', playback: 'پخش', idle: 'متوقف', resolving: 'در حال بررسی لینک', connecting: 'در حال اتصال', paused: 'مکث', playing: 'در حال پخش', finished: 'تمام شد', error: 'خطا',
     botControl: 'ربات Discord', botControlSub: 'ربات را مستقیماً از همین داشبورد اجرا یا متوقف کنید.', startBot: 'Run Bot', stopBot: 'Stop Bot', refresh: 'بروزرسانی',
     tokenReady: 'توکن ربات تنظیم شده است', tokenMissing: 'توکن ربات تنظیم نشده است', goSettings: 'رفتن به تنظیمات',
     selectServer: 'انتخاب سرور', selectServerHint: 'یکی از سرورهایی که ربات از قبل داخل آن Add شده را انتخاب کنید.', serverPlaceholder: 'یک سرور Discord انتخاب کنید…',
     selectVoice: 'انتخاب Voice Channel', voicePlaceholder: 'یک کانال ویس انتخاب کنید…', members: 'نفر', noVoice: 'Voice Channel پیدا نشد.',
-    mediaUrl: 'لینک ویدیو / مدیا', mediaHint: 'YouTube، SoundCloud یا لینک مستقیم فایل مدیا. صدای ویدیو داخل Voice پخش می‌شود.',
+    mediaUrl: 'لینک ویدیو / مدیا', mediaHint: 'YouTube، SoundCloud (Track یا Set/Playlist)، Instagram، TikTok، Vimeo یا لینک مستقیم مدیا. برای Playlist اولین آیتم پخش می‌شود. بار اول ممکن است Media Engine به‌صورت خودکار نصب شود.',
     volume: 'ولوم', playNow: 'پخش در Voice', stopLeave: 'توقف و خروج', loadingChannels: 'در حال دریافت کانال‌ها…',
     nowPlaying: 'در حال پخش', noPlayback: 'در حال حاضر چیزی پخش نمی‌شود.', joined: 'ربات به صورت خودکار وارد Voice انتخاب‌شده می‌شود.',
     limitationTitle: 'محدودیت ویدیوی Discord', limitation: 'API رسمی ربات‌های Discord قابلیت Go Live یا Screen Share ویدیو را ارائه نمی‌دهد. این پروژه صدای مدیا را داخل Voice پخش می‌کند و عمداً از روش‌های غیررسمی User Client استفاده نمی‌کند.',
@@ -279,7 +279,7 @@ function App() {
               <Card title={t.nowPlaying} subtitle={t.joined} icon={<Radio/>}>
                 {playbackStatus !== 'idle' ? <div className="now-playing">
                   <div className="wave"><i/><i/><i/><i/><i/></div>
-                  <div className="playing-copy"><strong>{selectedChannel?.name || status?.playback?.channelId || t.playback}</strong><span>{status?.playback?.url}</span><small>{status?.playback?.message}</small></div>
+                  <div className="playing-copy"><strong>{status?.playback?.title || selectedChannel?.name || status?.playback?.channelId || t.playback}</strong><span>{selectedChannel?.name ? `${selectedChannel.name} · ${status?.playback?.url || ''}` : status?.playback?.url}</span><small>{status?.playback?.message}</small></div>
                 </div> : <div className="empty-state"><Headphones/><strong>{t.noPlayback}</strong><span>{t.joined}</span></div>}
                 <button className="secondary full" onClick={() => setTab('control')}>{t.control}<ChevronRight/></button>
               </Card>
@@ -356,7 +356,7 @@ function App() {
             </Card>
           </div>}
         </section>
-        <footer>© {new Date().getFullYear()} Hcinco · Discord Bot Voice Dashboard · v2.0</footer>
+        <footer>© {new Date().getFullYear()} Hcinco · Discord Bot Voice Dashboard · v2.2</footer>
       </main>
     </div>
   );
